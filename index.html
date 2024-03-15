@@ -41,8 +41,8 @@
 
     const container = document.getElementById('network');
     const data = {
-      nodes: appData.notes,
-      edges: appData.edges
+      nodes: new vis.DataSet(appData.notes),
+      edges: new vis.DataSet(appData.edges)
     };
     const options = {
       nodes: {
@@ -72,6 +72,9 @@
         solver: 'forceAtlas2Based',
         timestep: 0.35,
         stabilization: { iterations: 150 }
+      },
+      interaction: {
+        zoomView: false
       }
     };
     const network = new vis.Network(container, data, options);
@@ -92,8 +95,7 @@
       const label = `Note ${id}`;
       const note = { id, label, content: '', x, y };
       appData.notes.push(note);
-      data.nodes.push(note);
-      network.setData(data);
+      data.nodes.add(note);
       currentNoteId = id;
       showNoteEditor(id);
     }
@@ -109,14 +111,13 @@
     function renameNote(id, newLabel) {
       const note = appData.notes.find(n => n.id === id);
       note.label = newLabel;
-      data.nodes.find(node => node.id === id).label = newLabel;
-      network.setData(data);
+      data.nodes.update({ id, label: newLabel });
     }
 
     function updateNoteContent(id, content) {
       const note = appData.notes.find(n => n.id === id);
       note.content = content;
-      data.nodes.find(node => node.id === id).title = `<div class="note-preview">${content}</div>`;
+      data.nodes.update({ id, title: `<div class="note-preview">${content}</div>` });
       updateEdges();
     }
 
@@ -129,8 +130,8 @@
           }
         });
       });
-      data.edges = appData.edges;
-      network.setData(data);
+      data.edges.clear();
+      data.edges.add(appData.edges);
     }
 
     function hasMatchingWords(content1, content2) {
@@ -150,10 +151,12 @@
 
     function highlightNotes(matchingNotes) {
       const noteIds = matchingNotes.map(note => note.id);
-      data.nodes.forEach(node => {
-        node.color = noteIds.includes(node.id) ? { background: 'lightgreen' } : null;
+      appData.notes.forEach(note => {
+        data.nodes.update({
+          id: note.id,
+          color: noteIds.includes(note.id) ? { background: 'lightgreen' } : null
+        });
       });
-      network.setData(data);
     }
 
     function addTag(id) {
