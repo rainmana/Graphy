@@ -1,193 +1,204 @@
 <!DOCTYPE html>
 <html>
 <head>
- <title>Graphy Note-Taker</title>
- <script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
- <link href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css" rel="stylesheet" type="text/css" />
- <link href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.min.css" rel="stylesheet" type="text/css" />
- <style>
-   #network {
-     width: 100%;
-     height: 800px;
-     border: 1px solid lightgray;
-   }
-   .note-preview {
-     max-width: 200px;
-     max-height: 100px;
-     overflow: hidden;
-     text-overflow: ellipsis;
-   }
- </style>
+  <title>Notes Graph App</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css" rel="stylesheet" type="text/css" />
+  <link href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.min.css" rel="stylesheet" type="text/css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+  <style>
+    #network {
+      width: 100%;
+      height: 800px;
+      border: 1px solid lightgray;
+    }
+    .note-preview {
+      max-width: 200px;
+      max-height: 100px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  </style>
 </head>
 <body>
- <h1>Graphy Note-Taker</h1>
- <div id="network"></div>
- <input type="text" id="searchInput" placeholder="Search...">
- <button onclick="searchNotes()">Search</button>
- <div id="noteEditor" style="display: none;">
-   <h3><input type="text" id="noteLabel" oninput="renameNote(currentNoteId, this.value)"></h3>
-   <textarea id="noteContent" oninput="updateNoteContent(currentNoteId, this.value)"></textarea>
-   <input type="text" id="tagInput" placeholder="Add tags...">
-   <button onclick="addTag(currentNoteId)">Add Tag</button>
-   <div id="tags"></div>
- </div>
+  <h1>Notes Graph App</h1>
+  <div id="network"></div>
+  <input type="text" id="searchInput" placeholder="Search...">
+  <button onclick="searchNotes()">Search</button>
+  <div id="noteEditor" style="display: none;">
+    <h3><input type="text" id="noteLabel" oninput="renameNote(currentNoteId, this.value)"></h3>
+    <textarea id="noteContent" oninput="updateNoteContent(currentNoteId, this.value)"></textarea>
+    <input type="text" id="tagInput" placeholder="Add tags...">
+    <button onclick="addTag(currentNoteId)">Add Tag</button>
+    <div id="tags"></div>
+  </div>
 
- <script>
-   let notes = JSON.parse(localStorage.getItem('notes')) || [];
-   let edges = JSON.parse(localStorage.getItem('edges')) || [];
-   let currentNoteId = null;
+  <script>
+    let notes = [];
+    let edges = [];
+    let currentNoteId = null;
 
-   const container = document.getElementById('network');
-   const data = {
-     nodes: notes,
-     edges: edges
-   };
-   const options = {
-     nodes: {
-       shape: 'box',
-       font: {
-         size: 14
-       },
-       title: undefined
-     },
-     edges: {
-       arrows: 'to',
-       smooth: {
-         type: 'cubicBezier',
-         forceDirection: 'horizontal',
-         roundness: 0.4
-       }
-     },
-     physics: {
-       enabled: true,
-       forceAtlas2Based: {
-         gravitationalConstant: -26,
-         centralGravity: 0.005,
-         springLength: 230,
-         springConstant: 0.18
-       },
-       maxVelocity: 146,
-       solver: 'forceAtlas2Based',
-       timestep: 0.35,
-       stabilization: { iterations: 150 }
-     }
-   };
-   const network = new vis.Network(container, data, options);
+    const container = document.getElementById('network');
+    const data = {
+      nodes: notes,
+      edges: edges
+    };
+    const options = {
+      nodes: {
+        shape: 'box',
+        font: {
+          size: 14
+        },
+        title: undefined
+      },
+      edges: {
+        arrows: 'to',
+        smooth: {
+          type: 'cubicBezier',
+          forceDirection: 'horizontal',
+          roundness: 0.4
+        }
+      },
+      physics: {
+        enabled: true,
+        forceAtlas2Based: {
+          gravitationalConstant: -26,
+          centralGravity: 0.005,
+          springLength: 230,
+          springConstant: 0.18
+        },
+        maxVelocity: 146,
+        solver: 'forceAtlas2Based',
+        timestep: 0.35,
+        stabilization: { iterations: 150 }
+      }
+    };
+    const network = new vis.Network(container, data, options);
 
-   network.on('click', function(params) {
-     if (params.nodes.length === 1) {
-       const noteId = params.nodes[0];
-       currentNoteId = noteId;
-       showNoteEditor(noteId);
-     } else if (params.nodes.length === 0) {
-       const position = network.DOMtoCanvas(params.pointer.DOM);
-       addNote(position.x, position.y);
-     }
-   });
+    async function init() {
+      notes = await localforage.getItem('notes') || [];
+      edges = await localforage.getItem('edges') || [];
+      data.nodes = notes;
+      data.edges = edges;
+      network.setData(data);
+    }
 
-   function addNote(x, y) {
-     const id = notes.length + 1;
-     const label = `Note ${id}`;
-     const note = { id, label, content: '', x, y };
-     notes.push(note);
-     data.nodes.push(note);
-     network.setData(data);
-     currentNoteId = id;
-     showNoteEditor(id);
-     saveNotes();
-   }
+    init();
 
-   function showNoteEditor(id) {
-     const note = notes.find(n => n.id === id);
-     document.getElementById('noteLabel').value = note.label;
-     document.getElementById('noteContent').value = note.content;
-     document.getElementById('noteEditor').style.display = 'block';
-     updateTags(id);
-   }
+    network.on('click', function(params) {
+      if (params.nodes.length === 1) {
+        const noteId = params.nodes[0];
+        currentNoteId = noteId;
+        showNoteEditor(noteId);
+      } else if (params.nodes.length === 0) {
+        const position = network.DOMtoCanvas(params.pointer.DOM);
+        addNote(position.x, position.y);
+      }
+    });
 
-   function renameNote(id, newLabel) {
-     const note = notes.find(n => n.id === id);
-     note.label = newLabel;
-     data.nodes.find(node => node.id === id).label = newLabel;
-     network.setData(data);
-     saveNotes();
-   }
+    async function addNote(x, y) {
+      const id = notes.length + 1;
+      const label = `Note ${id}`;
+      const note = { id, label, content: '', x, y };
+      notes.push(note);
+      data.nodes.push(note);
+      network.setData(data);
+      currentNoteId = id;
+      showNoteEditor(id);
+      await saveNotes();
+    }
 
-   function updateNoteContent(id, content) {
-     const note = notes.find(n => n.id === id);
-     note.content = content;
-     data.nodes.find(node => node.id === id).title = `<div class="note-preview">${content}</div>`;
-     updateEdges();
-     saveNotes();
-   }
+    function showNoteEditor(id) {
+      const note = notes.find(n => n.id === id);
+      document.getElementById('noteLabel').value = note.label;
+      document.getElementById('noteContent').value = note.content;
+      document.getElementById('noteEditor').style.display = 'block';
+      updateTags(id);
+    }
 
-   function updateEdges() {
-     edges = [];
-     notes.forEach(note1 => {
-       notes.forEach(note2 => {
-         if (note1.id !== note2.id && hasMatchingWords(note1.content, note2.content)) {
-           edges.push({ from: note1.id, to: note2.id });
-         }
-       });
-     });
-     data.edges = edges;
-     network.setData(data);
-     saveNotes();
-   }
+    async function renameNote(id, newLabel) {
+      const note = notes.find(n => n.id === id);
+      note.label = newLabel;
+      data.nodes.find(node => node.id === id).label = newLabel;
+      network.setData(data);
+      await saveNotes();
+    }
 
-   function hasMatchingWords(content1, content2) {
-     const words1 = content1.toLowerCase().split(/\W+/);
-     const words2 = content2.toLowerCase().split(/\W+/);
-     return words1.some(word => words2.includes(word));
-   }
+    async function updateNoteContent(id, content) {
+      const note = notes.find(n => n.id === id);
+      note.content = content;
+      data.nodes.find(node => node.id === id).title = `<div class="note-preview">${content}</div>`;
+      await updateEdges();
+      await saveNotes();
+    }
 
-   function searchNotes() {
-     const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-     const matchingNotes = notes.filter(note =>
-       note.content.toLowerCase().includes(searchTerm) ||
-       (note.tags && note.tags.some(tag => tag.toLowerCase().includes(searchTerm)))
-     );
-     highlightNotes(matchingNotes);
-   }
+    async function updateEdges() {
+      edges = [];
+      notes.forEach(note1 => {
+        notes.forEach(note2 => {
+          if (note1.id !== note2.id && hasMatchingWords(note1.content, note2.content)) {
+            edges.push({ from: note1.id, to: note2.id });
+          }
+        });
+      });
+      data.edges = edges;
+      network.setData(data);
+      await saveNotes();
+    }
 
-   function highlightNotes(matchingNotes) {
-     const noteIds = matchingNotes.map(note => note.id);
-     data.nodes.forEach(node => {
-       node.color = noteIds.includes(node.id) ? { background: 'lightgreen' } : null;
-     });
-     network.setData(data);
-   }
+    function hasMatchingWords(content1, content2) {
+      const words1 = content1.toLowerCase().split(/\W+/);
+      const words2 = content2.toLowerCase().split(/\W+/);
+      return words1.some(word => words2.includes(word));
+    }
 
-   function addTag(id) {
-     const note = notes.find(n => n.id === id);
-     const tagInput = document.getElementById('tagInput');
-     const tag = tagInput.value.trim();
-     if (tag !== '') {
-       note.tags = note.tags || [];
-       note.tags.push(tag);
-       tagInput.value = '';
-       updateTags(id);
-       saveNotes();
-     }
-   }
+    function searchNotes() {
+      const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+      const matchingNotes = notes.filter(note =>
+        note.content.toLowerCase().includes(searchTerm) ||
+        (note.tags && note.tags.some(tag => tag.toLowerCase().includes(searchTerm)))
+      );
+      highlightNotes(matchingNotes);
+    }
 
-   function updateTags(id) {
-     const note = notes.find(n => n.id === id);
-     const tagsElement = document.getElementById('tags');
-     tagsElement.innerHTML = '';
-     if (note.tags) {
-       note.tags.forEach(tag => {
-         const tagElement = document.createElement('span');
-         tagElement.textContent = tag;
-         tagsElement.appendChild(tagElement);
-       });
-     }
-   }
+    function highlightNotes(matchingNotes) {
+      const noteIds = matchingNotes.map(note => note.id);
+      data.nodes.forEach(node => {
+        node.color = noteIds.includes(node.id) ? { background: 'lightgreen' } : null;
+      });
+      network.setData(data);
+    }
 
-   function saveNotes() {
-     localStorage.setItem('notes', JSON.stringify(notes));
-     localStorage.setItem('edges', JSON.stringify(edges));
-   }
- </script>
+    async function addTag(id) {
+      const note = notes.find(n => n.id === id);
+      const tagInput = document.getElementById('tagInput');
+      const tag = tagInput.value.trim();
+      if (tag !== '') {
+        note.tags = note.tags || [];
+        note.tags.push(tag);
+        tagInput.value = '';
+        updateTags(id);
+        await saveNotes();
+      }
+    }
+
+    function updateTags(id) {
+      const note = notes.find(n => n.id === id);
+      const tagsElement = document.getElementById('tags');
+      tagsElement.innerHTML = '';
+      if (note.tags) {
+        note.tags.forEach(tag => {
+          const tagElement = document.createElement('span');
+          tagElement.textContent = tag;
+          tagsElement.appendChild(tagElement);
+        });
+      }
+    }
+
+    async function saveNotes() {
+      await localforage.setItem('notes', JSON.stringify(notes));
+      await localforage.setItem('edges', JSON.stringify(edges));
+    }
+  </script>
 </body>
 </html>
