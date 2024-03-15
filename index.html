@@ -5,7 +5,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css" rel="stylesheet" type="text/css" />
   <link href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.min.css" rel="stylesheet" type="text/css" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
   <style>
     #network {
       width: 100%;
@@ -34,14 +33,16 @@
   </div>
 
   <script>
-    let notes = [];
-    let edges = [];
+    let appData = {
+      notes: [],
+      edges: []
+    };
     let currentNoteId = null;
 
     const container = document.getElementById('network');
     const data = {
-      nodes: notes,
-      edges: edges
+      nodes: appData.notes,
+      edges: appData.edges
     };
     const options = {
       nodes: {
@@ -75,16 +76,6 @@
     };
     const network = new vis.Network(container, data, options);
 
-    async function init() {
-      notes = await localforage.getItem('notes') || [];
-      edges = await localforage.getItem('edges') || [];
-      data.nodes = notes;
-      data.edges = edges;
-      network.setData(data);
-    }
-
-    init();
-
     network.on('click', function(params) {
       if (params.nodes.length === 1) {
         const noteId = params.nodes[0];
@@ -96,54 +87,50 @@
       }
     });
 
-    async function addNote(x, y) {
-      const id = notes.length + 1;
+    function addNote(x, y) {
+      const id = appData.notes.length + 1;
       const label = `Note ${id}`;
       const note = { id, label, content: '', x, y };
-      notes.push(note);
+      appData.notes.push(note);
       data.nodes.push(note);
       network.setData(data);
       currentNoteId = id;
       showNoteEditor(id);
-      await saveNotes();
     }
 
     function showNoteEditor(id) {
-      const note = notes.find(n => n.id === id);
+      const note = appData.notes.find(n => n.id === id);
       document.getElementById('noteLabel').value = note.label;
       document.getElementById('noteContent').value = note.content;
       document.getElementById('noteEditor').style.display = 'block';
       updateTags(id);
     }
 
-    async function renameNote(id, newLabel) {
-      const note = notes.find(n => n.id === id);
+    function renameNote(id, newLabel) {
+      const note = appData.notes.find(n => n.id === id);
       note.label = newLabel;
       data.nodes.find(node => node.id === id).label = newLabel;
       network.setData(data);
-      await saveNotes();
     }
 
-    async function updateNoteContent(id, content) {
-      const note = notes.find(n => n.id === id);
+    function updateNoteContent(id, content) {
+      const note = appData.notes.find(n => n.id === id);
       note.content = content;
       data.nodes.find(node => node.id === id).title = `<div class="note-preview">${content}</div>`;
-      await updateEdges();
-      await saveNotes();
+      updateEdges();
     }
 
-    async function updateEdges() {
-      edges = [];
-      notes.forEach(note1 => {
-        notes.forEach(note2 => {
+    function updateEdges() {
+      appData.edges = [];
+      appData.notes.forEach(note1 => {
+        appData.notes.forEach(note2 => {
           if (note1.id !== note2.id && hasMatchingWords(note1.content, note2.content)) {
-            edges.push({ from: note1.id, to: note2.id });
+            appData.edges.push({ from: note1.id, to: note2.id });
           }
         });
       });
-      data.edges = edges;
+      data.edges = appData.edges;
       network.setData(data);
-      await saveNotes();
     }
 
     function hasMatchingWords(content1, content2) {
@@ -154,7 +141,7 @@
 
     function searchNotes() {
       const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-      const matchingNotes = notes.filter(note =>
+      const matchingNotes = appData.notes.filter(note =>
         note.content.toLowerCase().includes(searchTerm) ||
         (note.tags && note.tags.some(tag => tag.toLowerCase().includes(searchTerm)))
       );
@@ -169,8 +156,8 @@
       network.setData(data);
     }
 
-    async function addTag(id) {
-      const note = notes.find(n => n.id === id);
+    function addTag(id) {
+      const note = appData.notes.find(n => n.id === id);
       const tagInput = document.getElementById('tagInput');
       const tag = tagInput.value.trim();
       if (tag !== '') {
@@ -178,12 +165,11 @@
         note.tags.push(tag);
         tagInput.value = '';
         updateTags(id);
-        await saveNotes();
       }
     }
 
     function updateTags(id) {
-      const note = notes.find(n => n.id === id);
+      const note = appData.notes.find(n => n.id === id);
       const tagsElement = document.getElementById('tags');
       tagsElement.innerHTML = '';
       if (note.tags) {
@@ -193,11 +179,6 @@
           tagsElement.appendChild(tagElement);
         });
       }
-    }
-
-    async function saveNotes() {
-      await localforage.setItem('notes', JSON.stringify(notes));
-      await localforage.setItem('edges', JSON.stringify(edges));
     }
   </script>
 </body>
